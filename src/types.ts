@@ -48,3 +48,16 @@ export interface RollingAverageMetrics {
   priorMonthAvgM1: number;
   currentMonthAvgM0: number;
 }
+
+export interface ProviderAuthConfig {
+  provider: MarketProvider;
+  authenticated: boolean;
+  headers: Record<string, string>;
+  maskedKeyHint: string;
+}
+
+export interface ServiceHealthStatus {
+  healthy: boolean;
+  staleSeconds: number;
+  action: "OK" | "RESTART_REQUIRED";
+}

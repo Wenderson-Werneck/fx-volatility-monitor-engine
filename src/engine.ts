@@ -4,8 +4,11 @@ import {
   EvaluationResult,
   FXQuote,
   MarketConsensusMode,
+  MarketProvider,
   PTAXDailyClose,
   RollingAverageMetrics,
+  ProviderAuthConfig,
+  ServiceHealthStatus,
 } from "./types.js";
 
 export class FXVolatilityMonitorEngine {
@@ -216,6 +219,56 @@ export class FXVolatilityMonitorEngine {
       weeklyDelta: Number((s0Avg - s1Avg).toFixed(4)),
       currentMonthAvgM0: Number(m0Avg.toFixed(4)),
       priorMonthAvgM1: Number(m1Avg.toFixed(4)),
+    };
+  }
+
+  /**
+   * Builds authenticated header configuration for FX market data providers
+   * with graceful fallback to public unauthenticated endpoints.
+   */
+  public static buildProviderAuthConfig(
+    provider: MarketProvider,
+    apiKey?: string | null
+  ): ProviderAuthConfig {
+    const trimmed = (apiKey ?? "").trim();
+    if (!trimmed) {
+      return {
+        provider,
+        authenticated: false,
+        headers: {},
+        maskedKeyHint: "UNAUTHENTICATED_PUBLIC_FALLBACK",
+      };
+    }
+
+    const suffix = trimmed.length > 4 ? trimmed.slice(-4) : "****";
+    return {
+      provider,
+      authenticated: true,
+      headers: { "x-api-key": trimmed },
+      maskedKeyHint: `***${suffix}`,
+    };
+  }
+
+  /**
+   * Evaluates monitor liveness for container watchdog / health-based recovery.
+   */
+  public static evaluateHealth(
+    lastSuccessfulPollIso: string | null,
+    maxStaleSeconds: number = 300,
+    now: Date = new Date()
+  ): ServiceHealthStatus {
+    if (!lastSuccessfulPollIso) {
+      return { healthy: false, staleSeconds: maxStaleSeconds + 1, action: "RESTART_REQUIRED" };
+    }
+    const staleSeconds = Math.max(
+      0,
+      Math.floor((now.getTime() - new Date(lastSuccessfulPollIso).getTime()) / 1000)
+    );
+    const healthy = staleSeconds <= maxStaleSeconds;
+    return {
+      healthy,
+      staleSeconds,
+      action: healthy ? "OK" : "RESTART_REQUIRED",
     };
   }
 }

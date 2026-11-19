@@ -93,4 +93,24 @@ describe("FXVolatilityMonitorEngine", () => {
     assert.equal(metrics.priorWeekAvgS1, 5.775); // (5.755+5.765+5.775+5.785+5.795)/5 = 5.775
     assert.equal(metrics.weeklyDelta, 0.05); // 5.825 - 5.775 = +0.05 BRL
   });
+
+  test("builds authenticated provider config with safe fallback and evaluates health probe", () => {
+    const authed = FXVolatilityMonitorEngine.buildProviderAuthConfig("AWESOME_API", "live_key_9876");
+    assert.equal(authed.authenticated, true);
+    assert.equal(authed.headers["x-api-key"], "live_key_9876");
+    assert.equal(authed.maskedKeyHint, "***9876");
+
+    const fallback = FXVolatilityMonitorEngine.buildProviderAuthConfig("AWESOME_API", "   ");
+    assert.equal(fallback.authenticated, false);
+    assert.deepEqual(fallback.headers, {});
+
+    const now = new Date("2026-11-18T12:05:00Z");
+    const ok = FXVolatilityMonitorEngine.evaluateHealth("2026-11-18T12:02:00Z", 300, now);
+    assert.equal(ok.healthy, true);
+    assert.equal(ok.action, "OK");
+
+    const stale = FXVolatilityMonitorEngine.evaluateHealth("2026-11-18T11:55:00Z", 300, now);
+    assert.equal(stale.healthy, false);
+    assert.equal(stale.action, "RESTART_REQUIRED");
+  });
 });
